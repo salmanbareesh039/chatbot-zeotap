@@ -21,7 +21,7 @@ nlp = spacy.load("en_core_web_sm")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # 🔹 Load CSV Data
-df = pd.read_csv("combined_scraped_data.csv")
+df = pd.read_csv("https://raw.githubusercontent.com/mohammedifran13/chatbot-zeotap/main/combined_scraped_data.csv")
 df["Processed_Text"] = df["Scraped_Text"].astype(str).str.lower()
 
 # 🔹 Prepare BM25 for search
