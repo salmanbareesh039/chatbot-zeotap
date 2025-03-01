@@ -1,0 +1,9 @@
+Flask
+pandas
+nltk
+spacy
+requests
+rank_bm25
+sentence-transformers
+google-generativeai
+gunicorn
