@@ -2,7 +2,6 @@ flask
 pandas
 requests
 numpy
-sentence-transformers
 rank-bm25
 google-generativeai
 gunicorn
