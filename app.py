@@ -13,11 +13,18 @@ from sentence_transformers import SentenceTransformer, util
 app = Flask(__name__)
 
 # 🔹 Download necessary NLP models
+import spacy
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    import subprocess
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
+
 nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download("stopwords")
 stop_words = set(stopwords.words("english"))
-nlp = spacy.load("en_core_web_sm")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # 🔹 Load CSV Data
