@@ -6,6 +6,7 @@ import google.generativeai as genai
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer, util
 from flask import Flask, request, jsonify
+import os
 
 app = Flask(__name__)
 
@@ -198,5 +199,9 @@ def query():
     response = answer_query(query_text)
     return jsonify({"response": response})
 
+import os
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))  # Get PORT from Render
+    app.run(host="0.0.0.0", port=port)  # Bind to all interfaces
+
