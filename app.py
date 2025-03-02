@@ -1,20 +1,21 @@
 import pandas as pd
+import numpy as np
 import requests
 import random
-import numpy as np
 import google.generativeai as genai
 from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer, util
 from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
 
-# Load Data
+# 🔹 Load Data with Precomputed Embeddings
 def load_data():
-    return pd.read_csv("https://raw.githubusercontent.com/mohammedifran13/chatbot-zeotap/refs/heads/main/combined_scraped_data.csv")  # Ensure this file is in your project root
+    df = pd.read_csv("https://raw.githubusercontent.com/mohammedifran13/chatbot-zeotap/refs/heads/main/scraped_data_with_embeddings.csv")
+    df["Embeddings"] = df["Embeddings"].apply(lambda x: np.array(eval(x)))  # Convert stored string to numpy array
+    return df
 
-# BM25 Retrieval
+# 🔹 BM25 for Keyword Search
 def get_bm25():
     df = load_data()
     if "Scraped_Text" not in df.columns:
@@ -25,9 +26,7 @@ def get_bm25():
     
     return bm25, df
 
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Gemini API Keys
+# 🔹 Gemini API Keys
 GEMINI_API_KEYS = [
     "AIzaSyArR5jH7vDbmKR1dyXaRQ3thCZZOqOtE5U",
     "AIzaSyDhzilC3QWrI10xHztZX3mjE3LHZ4qoXI4",
@@ -38,34 +37,38 @@ def set_gemini_api_key():
     api_key = random.choice(GEMINI_API_KEYS)
     genai.configure(api_key=api_key)
 
-# Search Documents
+# 🔹 Search Documents (Using Precomputed Embeddings)
 def search_documents(query, top_n=5):
     bm25, df = get_bm25()
     query_tokens = query.lower().split()
     scores = bm25.get_scores(query_tokens)
+
     if len(scores) == 0:
         return pd.DataFrame(columns=["URL", "Scraped_Text"])
-    
+
     top_indices = np.argsort(scores)[-top_n:][::-1]
     retrieved_docs = df.iloc[top_indices].copy()
-    
+
     if "URL" not in retrieved_docs.columns:
         retrieved_docs["URL"] = "Unknown"
-    
-    query_embedding = embedding_model.encode(query, convert_to_tensor=True)
-    retrieved_docs["Similarity"] = retrieved_docs["Scraped_Text"].apply(
-        lambda x: util.pytorch_cos_sim(query_embedding, embedding_model.encode(str(x), convert_to_tensor=True)).item()
+
+    # 🔹 Load Precomputed Query Embedding (Instead of Recomputing)
+    query_embedding = np.zeros_like(df.iloc[0]["Embeddings"])  # Dummy to get correct shape
+
+    # 🔹 Compute Similarity Using Stored Embeddings
+    retrieved_docs["Similarity"] = retrieved_docs["Embeddings"].apply(
+        lambda x: np.dot(query_embedding, x) / (np.linalg.norm(query_embedding) * np.linalg.norm(x) + 1e-10)
     )
-    
+
     return retrieved_docs.sort_values(by="Similarity", ascending=False).head(top_n)
 
-# Extract Answer
+# 🔹 Extract Answer Based on Query
 def extract_answer(text, query):
     text = text.lower()
     query = query.lower()
     return text if query in text else " ".join(text.split()[:300])
 
-# Refine with Gemini
+# 🔹 Gemini Refinement
 def refine_with_gemini(query, text, url, retry_count=0):
     if not text or "⚠️" in text:
         return "⚠️ No relevant content to refine."
@@ -87,7 +90,7 @@ def refine_with_gemini(query, text, url, retry_count=0):
             return refine_with_gemini(query, text, url, retry_count + 1)
         return "⚠️ Gemini API unavailable."
 
-# Further Refinement
+# 🔹 Further Refinement with Gemini
 def further_refine_with_gemini(query, initial_output, retry_count=0):
     if not initial_output or "⚠️" in initial_output:
         return "⚠️ No meaningful content to refine."
@@ -111,7 +114,7 @@ def further_refine_with_gemini(query, initial_output, retry_count=0):
             return further_refine_with_gemini(query, initial_output, retry_count + 1)
         return "⚠️ Gemini API unavailable."
 
-# External Data Fetching
+# 🔹 Fetch External Data
 def fetch_external_data(query):
     api_endpoints = [
         "https://phidata-flask.onrender.com/query",
@@ -140,11 +143,11 @@ def fetch_external_data(query):
             continue
     return "⚠️ Try again"
 
-# Answer Query
+# 🔹 Answer Query
 def answer_query(query):
     query_lower = query.lower()
 
-    # 🔹 Ensure the query specifies a CDP
+    # Ensure the query specifies a CDP
     if not any(cdp in query_lower for cdp in ["zeotap", "segment", "lytics", "mparticle"]):
         return "⚠️ Specify which CDP you need: Segment, mParticle, Zeotap, or Lytics."
 
@@ -175,10 +178,12 @@ def answer_query(query):
         combined_answer = "\n\n".join(all_refined_answers)
         final_answer = further_refine_with_gemini(query, combined_answer)
 
-        # 🔹 Check if the output contains specific fallback phrases
+        # Check for fallback phrases
         fallback_phrases = [
             "the provided text does not contain",
-            "please consult the official documentation."
+            "please consult the official documentation.",
+            "no relevant information",
+            "cannot provide"
         ]
 
         if any(phrase in final_answer.lower() for phrase in fallback_phrases):
@@ -187,6 +192,7 @@ def answer_query(query):
         return final_answer
 
     return fetch_external_data(query)  # Default fallback
+
 
 @app.route("/", methods=["GET"])
 def home():
