@@ -188,7 +188,10 @@ def answer_query(query):
 
     return fetch_external_data(query)  # Default fallback
 
-# Flask API Route
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ API is running!", 200
+
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
@@ -199,9 +202,8 @@ def query():
     response = answer_query(query_text)
     return jsonify({"response": response})
 
-import os
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))  # Get PORT from Render
     app.run(host="0.0.0.0", port=port)  # Bind to all interfaces
+
 
