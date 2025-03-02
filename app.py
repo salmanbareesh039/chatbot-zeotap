@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 # Load Data
 def load_data():
-    return pd.read_csv("combined_scraped_data.csv")  # Ensure this file is in your project root
+    return pd.read_csv("https://raw.githubusercontent.com/mohammedifran13/chatbot-zeotap/combined_scraped_data.csv")  # Ensure this file is in your project root
 
 # BM25 Retrieval
 def get_bm25():
